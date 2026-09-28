@@ -1,5 +1,7 @@
 # ms-customer
 
+> Plataforma: [ms-platform](https://github.com/vidaal126/ms-platform#readme) · [ms-gateway](https://github.com/vidaal126/ms-gateway#readme) · [ms-auth](https://github.com/vidaal126/ms-auth#readme) · [ms-catalog](https://github.com/vidaal126/ms-catalog#readme) · [ms-transport](https://github.com/vidaal126/ms-transport#readme) · **ms-customer** · [ms-sales-order](https://github.com/vidaal126/ms-sales-order#readme)
+
 Microsserviço de clientes (NestJS, Prisma, PostgreSQL, Kafka):
 
 - **Clientes**: é o dono do `Customer`, com CPF validado e normalizado, contato
@@ -147,7 +149,7 @@ A idempotência torna o replay seguro.
 
 ## Como subir
 
-Com a infraestrutura do [ms-platform](../ms-platform/README.md) no ar
+Com a infraestrutura do [ms-platform](https://github.com/vidaal126/ms-platform#readme) no ar
 (`docker compose up -d postgres kafka kafka-init kafka-ui`):
 
 ```bash
@@ -210,6 +212,9 @@ A integração cobre:
 
 ## Limitações conhecidas
 
+- **Ordem por agregado no outbox**: os eventos saem na ordem de gravação
+  (`sequence`). Se o envio de um evento falha, os seguintes do mesmo
+  agregado esperam o próximo ciclo; os de outros agregados seguem.
 - **Consistência eventual.** Um tipo de transporte recém-criado no ms-transport
   pode dar 422 por alguns instantes, até chegar à réplica.
 - **Unicidade dos ids autorizados** é garantida só pelo domínio e pelo DTO. O
@@ -217,5 +222,9 @@ A integração cobre:
 - **O replay republica na DLT** as mensagens não recuperáveis que já estavam lá.
 - **O outbox não usa `SKIP LOCKED`.** Várias réplicas publicariam em
   duplicidade, o que é seguro para consumidores idempotentes.
-- **Rate limit em memória, por réplica.**
+- **Rate limit em memória, por réplica.** O `trust proxy` confia em
+  exatamente 1 salto (o ms-gateway, que anexa o IP do cliente ao
+  `X-Forwarded-For`), então o limite conta por cliente e não pelo IP do
+  gateway. Acessar o serviço direto, sem o gateway, permite escolher o IP
+  contado via `X-Forwarded-For`.
 - **Os serviços confiam no gateway.** Não há autenticação própria.
