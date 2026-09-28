@@ -9,7 +9,7 @@ export class OutboxRepository {
   async findPending(limit: number): Promise<OutboxEvent[]> {
     return this.prisma.outboxEvent.findMany({
       where: { publishedAt: null },
-      orderBy: { createdAt: "asc" },
+      orderBy: { sequence: "asc" },
       take: limit,
     });
   }

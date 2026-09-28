@@ -36,9 +36,11 @@ model ProcessedEvent {
   @@map("processed_events")
 }
 
-// Transactional Outbox: id = eventId do envelope.
+// Transactional Outbox: id = eventId do envelope. sequence = ordem de
+// insercao (createdAt empata dentro da mesma transacao).
 model OutboxEvent {
   id            String    @id @default(uuid())
+  sequence      BigInt    @unique @default(autoincrement())
   aggregateId   String
   eventType     String
   schemaVersion Int
