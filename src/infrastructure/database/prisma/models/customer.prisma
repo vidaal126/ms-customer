@@ -1,0 +1,67 @@
+// Clientes. Id gerado no dominio; document (CPF normalizado) e unico.
+model Customer {
+  id                         String   @id
+  name                       String
+  document                   String   @unique
+  email                      String?
+  phone                      String?
+  // Ids de TransportType (dono: ms-transport), validados contra a replica.
+  authorizedTransportTypeIds String[]
+  createdAt                  DateTime
+  updatedAt                  DateTime
+
+  @@index([createdAt, id])
+  @@map("customers")
+}
+
+// Replica local dos tipos de transporte, alimentada por transport.*.
+model TransportTypeReplica {
+  transportTypeId  String   @id
+  name             String
+  active           Boolean
+  sourceEventId    String
+  sourceOccurredAt DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("transport_types_replica")
+}
+
+// Idempotencia do consumer: eventId de cada evento aplicado.
+model ProcessedEvent {
+  eventId     String   @id
+  eventType   String
+  processedAt DateTime @default(now())
+
+  @@map("processed_events")
+}
+
+// Transactional Outbox: id = eventId do envelope.
+model OutboxEvent {
+  id            String    @id @default(uuid())
+  aggregateId   String
+  eventType     String
+  schemaVersion Int
+  correlationId String
+  payload       Json
+  createdAt     DateTime  @default(now())
+  publishedAt   DateTime?
+
+  @@index([publishedAt, createdAt])
+  @@map("outbox_events")
+}
+
+// Idempotency-Key do POST /customers (copia do ms-catalog).
+model IdempotencyKey {
+  key            String   @id
+  requestHash    String
+  status         String
+  responseStatus Int?
+  responseBody   Json?
+  lockedAt       DateTime
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
