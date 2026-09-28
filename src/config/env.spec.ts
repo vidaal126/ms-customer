@@ -13,6 +13,7 @@ describe("validateEnv", () => {
     expect(env.KAFKA_BROKER).toEqual(["localhost:9092"]);
     expect(env.TRANSPORT_SYNC_GROUP_ID).toBe("ms-customer.transport-type-sync");
     expect(env.CONSUMER_PAUSE_MS).toBe(30_000);
+    expect(env.KAFKA_SEND_TIMEOUT_MS).toBe(5_000);
   });
 
   it("aceita group de replay fixo e rejeita group id invalido", () => {

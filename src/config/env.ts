@@ -17,6 +17,9 @@ export const envSchema = z.object({
     .transform((value) => value.split(",").map((broker) => broker.trim()))
     .pipe(z.array(z.string().regex(/^[^\s:]+:\d+$/, "formato host:porta")).min(1)),
   KAFKA_CLIENT_ID: z.string().min(1).default("ms-customer"),
+  // Teto de cada envio do producer (conexao + ack). Estourado, conta como
+  // falha: o outbox tenta de novo no proximo tick, a DLT nao commita o offset.
+  KAFKA_SEND_TIMEOUT_MS: positiveInt.default(5_000),
   // Group da replica de tipos de transporte. Sobrescrever so para replay com
   // um group temporario fixo (nunca aleatorio).
   TRANSPORT_SYNC_GROUP_ID: z

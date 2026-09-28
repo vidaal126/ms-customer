@@ -168,6 +168,7 @@ Veja `.env.example`.
 |---|---|---|
 | `DATABASE_URL` | obrigatória | database `customer` |
 | `KAFKA_BROKER` | obrigatória | `host:porta`, separados por vírgula |
+| `KAFKA_SEND_TIMEOUT_MS` | 5000 | teto de cada envio ao Kafka (conexão + ack); estourado, conta como falha (o outbox tenta de novo no próximo ciclo, a DLT não commita o offset) |
 | `PORT` | 3003 | porta HTTP |
 | `TRANSPORT_SYNC_GROUP_ID` | `ms-customer.transport-type-sync` | group da réplica; outro valor, só para replay |
 | `CONSUMER_RETRY_RETRIES` / `_INITIAL_MS` / `_MAX_MS` | 5 / 300 / 30000 | retry em processo |
