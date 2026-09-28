@@ -36,6 +36,7 @@ describe("Customer", () => {
       email: "ana@example.com",
       phone: "(11) 98765-4321",
       authorizedTransportTypeIds: [TRUCK_ID, BIKE_ID],
+      version: 0,
     });
     const [event] = customer.pullDomainEvents();
     expect(event).toBeInstanceOf(CustomerCreatedEvent);

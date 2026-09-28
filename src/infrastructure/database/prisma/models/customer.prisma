@@ -7,6 +7,8 @@ model Customer {
   phone                      String?
   // Ids de TransportType (dono: ms-transport), validados contra a replica.
   authorizedTransportTypeIds String[]
+  // Controle otimista: update so grava se a versao lida ainda e a atual.
+  version                    Int      @default(0)
   createdAt                  DateTime
   updatedAt                  DateTime
 

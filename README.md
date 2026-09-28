@@ -182,7 +182,7 @@ Veja `.env.example`.
 | Método | Rota | Descrição |
 |---|---|---|
 | `POST` | `/customers` | cria; `Idempotency-Key` opcional (mesmo corpo repete a resposta, corpo diferente dá 422). Respostas: 409 com CPF repetido, 422 com CPF ou transporte inválido, 400 com DTO inválido |
-| `PUT` | `/customers/:id` | altera `name`, `email`, `phone` e `authorizedTransportTypeIds` (substitui a lista); o `document` é imutável |
+| `PUT` | `/customers/:id` | altera `name`, `email`, `phone` e `authorizedTransportTypeIds` (substitui a lista); o `document` é imutável. 409 quando outra requisição alterou o cliente entre a leitura e a gravação (controle otimista por `version`): releia e repita |
 | `GET` | `/customers` | lista paginada (`page`, `limit` até 100) com `total`, ordenada por `createdAt desc, id desc` |
 | `GET` | `/customers/:id` | 404 se não existir |
 | `GET` | `/health/live` e `/health/ready` | readiness verifica banco, broker e consumer |

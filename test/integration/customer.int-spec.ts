@@ -4,6 +4,8 @@ import type { INestApplication } from "@nestjs/common";
 import { KafkaContainer, type StartedKafkaContainer } from "@testcontainers/kafka";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { z } from "zod";
+import { CUSTOMER_REPOSITORY, type ICustomerRepository } from "@application/ports/customer.ports";
+import { CustomerConcurrentModificationError } from "@domain/errors/customer.errors";
 import type { PrismaService } from "@infrastructure/database/prisma/prisma.service";
 import { sampleValue } from "../../src/test/metrics.helpers";
 import { KafkaTestClient, waitFor } from "./kafka-test-client";
@@ -244,6 +246,48 @@ describe("ms-customer: clientes e replica de transporte (integracao)", () => {
     expect(found.status).toBe(200);
     expect(missing.status).toBe(404);
     expect(page.body).toMatchObject({ total: 2, page: 1, pageSize: 10 });
+  });
+
+  it("update com versao antiga: CustomerConcurrentModificationError, nada gravado nem publicado", async () => {
+    const customers = app.get<ICustomerRepository>(CUSTOMER_REPOSITORY);
+    const updatedEvents = (): Promise<number> =>
+      prisma.outboxEvent.count({ where: { aggregateId: customerId, eventType: "CustomerUpdated" } });
+    const eventsBefore = await updatedEvents();
+    const first = await customers.findById(customerId);
+    const stale = await customers.findById(customerId);
+    if (!first || !stale) throw new Error("cliente do teste sumiu");
+
+    first.update({ name: "Ana Primeira", now: new Date() });
+    await customers.update(first, { correlationId: "cas-1" });
+    stale.update({ name: "Ana Atrasada", now: new Date() });
+
+    await expect(customers.update(stale, { correlationId: "cas-2" })).rejects.toBeInstanceOf(
+      CustomerConcurrentModificationError,
+    );
+    expect(await prisma.customer.findUnique({ where: { id: customerId }, select: { name: true, version: true } })).toEqual({
+      name: "Ana Primeira",
+      version: first.version + 1,
+    });
+    expect(await updatedEvents()).toBe(eventsBefore + 1);
+  });
+
+  it("PUTs concorrentes: cada um responde 200 ou 409 e nenhum update se perde", async () => {
+    const versionOf = async (): Promise<number> =>
+      (await prisma.customer.findUniqueOrThrow({ where: { id: customerId }, select: { version: true } })).version;
+    const before = await versionOf();
+
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, (_, index) => send("PUT", `/customers/${customerId}`, { name: `Ana ${index}` })),
+    );
+    const statuses = responses.map((response) => response.status);
+    const conflicts = responses.filter((response) => response.status === 409);
+
+    expect(statuses.every((status) => status === 200 || status === 409)).toBe(true);
+    for (const conflict of conflicts) {
+      expect(conflict.body).toMatchObject({ error: "CustomerConcurrentModificationError" });
+    }
+    // Cada 200 gravou exatamente uma versao: nenhuma escrita sobrescreveu outra.
+    expect(await versionOf()).toBe(before + statuses.filter((status) => status === 200).length);
   });
 
   it("GET /metrics expoe consumo por resultado e outbox", async () => {

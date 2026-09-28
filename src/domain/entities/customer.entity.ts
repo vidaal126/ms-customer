@@ -30,6 +30,7 @@ export interface RestoreCustomerProps {
   readonly email: string | null;
   readonly phone: string | null;
   readonly authorizedTransportTypeIds: readonly string[];
+  readonly version: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -54,6 +55,8 @@ export class Customer extends AggregateRoot<CustomerEvent> {
     private _email: string | null,
     private _phone: string | null,
     private _authorizedTransportTypeIds: readonly string[],
+    // Versao lida do banco: controle otimista de concorrencia no update.
+    readonly version: number,
     readonly createdAt: Date,
     private _updatedAt: Date,
   ) {
@@ -68,6 +71,7 @@ export class Customer extends AggregateRoot<CustomerEvent> {
       optional(props.email, normalizeEmail),
       optional(props.phone, normalizePhone),
       normalizeTransportTypeIds(props.authorizedTransportTypeIds),
+      0,
       props.now,
       props.now,
     );
@@ -83,6 +87,7 @@ export class Customer extends AggregateRoot<CustomerEvent> {
       props.email,
       props.phone,
       props.authorizedTransportTypeIds,
+      props.version,
       props.createdAt,
       props.updatedAt,
     );

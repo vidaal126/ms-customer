@@ -1,7 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma, type Customer as CustomerModel } from "@infrastructure/database/generated/client";
 import { Customer } from "@domain/entities/customer.entity";
-import { CustomerDocumentAlreadyExistsError, CustomerNotFoundError } from "@domain/errors/customer.errors";
+import {
+  CustomerConcurrentModificationError,
+  CustomerDocumentAlreadyExistsError,
+} from "@domain/errors/customer.errors";
 import type {
   ICustomerRepository,
   Page,
@@ -44,6 +47,7 @@ export class CustomerRepositoryPrisma implements ICustomerRepository {
             email: customer.email,
             phone: customer.phone,
             authorizedTransportTypeIds: [...customer.authorizedTransportTypeIds],
+            version: customer.version,
             createdAt: customer.createdAt,
             updatedAt: customer.updatedAt,
           },
@@ -61,16 +65,20 @@ export class CustomerRepositoryPrisma implements ICustomerRepository {
     const events = customer.pullDomainEvents();
     try {
       await this.prisma.$transaction(async (tx) => {
-        await tx.customer.update({
-          where: { id: customer.id },
+        // Compare-and-set pela versao lida: dois PUTs concorrentes no mesmo
+        // cliente, so um grava; o outro recebe 409.
+        const updated = await tx.customer.updateMany({
+          where: { id: customer.id, version: customer.version },
           data: {
             name: customer.name,
             email: customer.email,
             phone: customer.phone,
             authorizedTransportTypeIds: [...customer.authorizedTransportTypeIds],
             updatedAt: customer.updatedAt,
+            version: { increment: 1 },
           },
         });
+        if (updated.count !== 1) throw new CustomerConcurrentModificationError(customer.id);
         if (events.length > 0) {
           await tx.outboxEvent.createMany({ data: events.map((e) => toOutboxEventData(e, context)) });
         }
@@ -81,11 +89,10 @@ export class CustomerRepositoryPrisma implements ICustomerRepository {
   }
 }
 
-// P2002: documento unico violado. P2025: cliente sumiu entre leitura e update.
+// P2002: documento unico violado.
 function translateWriteError(err: unknown, customer: Customer): unknown {
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    if (err.code === "P2002") return new CustomerDocumentAlreadyExistsError(customer.document);
-    if (err.code === "P2025") return new CustomerNotFoundError(customer.id);
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    return new CustomerDocumentAlreadyExistsError(customer.document);
   }
   return err;
 }
@@ -98,6 +105,7 @@ function toDomain(row: CustomerModel): Customer {
     email: row.email,
     phone: row.phone,
     authorizedTransportTypeIds: row.authorizedTransportTypeIds,
+    version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });

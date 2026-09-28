@@ -24,7 +24,7 @@ export interface ICustomerRepository {
   // Persistem o agregado e gravam seus eventos no outbox na mesma transacao.
   // Documento duplicado: CustomerDocumentAlreadyExistsError.
   create(customer: Customer, context: PersistenceContext): Promise<void>;
-  // Id inexistente: CustomerNotFoundError.
+  // Compare-and-set pela versao lida: CustomerConcurrentModificationError.
   update(customer: Customer, context: PersistenceContext): Promise<void>;
 }
 

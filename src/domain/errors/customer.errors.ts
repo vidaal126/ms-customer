@@ -12,6 +12,13 @@ export class CustomerDocumentAlreadyExistsError extends EntityConflictError {
   }
 }
 
+// Outra requisicao alterou o cliente entre a leitura e a gravacao.
+export class CustomerConcurrentModificationError extends EntityConflictError {
+  constructor(readonly customerId: string) {
+    super(`Cliente ${customerId} foi alterado por outra requisicao; tente de novo`);
+  }
+}
+
 export class InvalidCustomerError extends InvariantViolationError {}
 
 // Id de transporte que a replica local nao conhece (ainda nao replicado ou

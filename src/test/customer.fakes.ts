@@ -1,5 +1,8 @@
-import type { Customer } from "@domain/entities/customer.entity";
-import { CustomerDocumentAlreadyExistsError } from "@domain/errors/customer.errors";
+import { Customer } from "@domain/entities/customer.entity";
+import {
+  CustomerConcurrentModificationError,
+  CustomerDocumentAlreadyExistsError,
+} from "@domain/errors/customer.errors";
 import type { CustomerEvent } from "@domain/events/customer.events";
 import type {
   ICustomerRepository,
@@ -22,8 +25,10 @@ export class InMemoryCustomerRepository implements ICustomerRepository {
   readonly outbox: Array<{ event: CustomerEvent; context: PersistenceContext }> = [];
   updates = 0;
 
+  // Copia a cada leitura, como o banco: duas leituras nao compartilham estado.
   async findById(id: string): Promise<Customer | undefined> {
-    return this.rows.get(id);
+    const row = this.rows.get(id);
+    return row ? snapshot(row, row.version) : undefined;
   }
 
   async findAll(request: PageRequest): Promise<Page<Customer>> {
@@ -41,14 +46,30 @@ export class InMemoryCustomerRepository implements ICustomerRepository {
   }
 
   async update(customer: Customer, context: PersistenceContext): Promise<void> {
+    const stored = this.rows.get(customer.id);
+    if (stored?.version !== customer.version) throw new CustomerConcurrentModificationError(customer.id);
     this.updates += 1;
-    this.rows.set(customer.id, customer);
+    this.rows.set(customer.id, snapshot(customer, customer.version + 1));
     this.pushEvents(customer, context);
   }
 
   private pushEvents(customer: Customer, context: PersistenceContext): void {
     for (const event of customer.pullDomainEvents()) this.outbox.push({ event, context });
   }
+}
+
+function snapshot(customer: Customer, version: number): Customer {
+  return Customer.restore({
+    id: customer.id,
+    name: customer.name,
+    document: customer.document,
+    email: customer.email,
+    phone: customer.phone,
+    authorizedTransportTypeIds: customer.authorizedTransportTypeIds,
+    version,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+  });
 }
 
 export class InMemoryTransportTypeReplica implements ITransportTypeReplicaRepository {

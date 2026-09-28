@@ -1,4 +1,5 @@
 import {
+  CustomerConcurrentModificationError,
   CustomerDocumentAlreadyExistsError,
   CustomerNotFoundError,
   UnknownTransportTypeError,
@@ -74,6 +75,21 @@ describe("casos de uso de cliente", () => {
     replica.seed(TRUCK_ID, false);
     await update.execute({ id: customer.id, name: "Ana Maria", authorizedTransportTypeIds: [TRUCK_ID] }, context);
     expect(customers.updates).toBe(1);
+    expect(customers.outbox.map((e) => e.event.eventType)).toEqual(["CustomerCreated", "CustomerUpdated"]);
+  });
+
+  it("update incrementa a versao; gravacao com versao antiga: CustomerConcurrentModificationError", async () => {
+    const customer = await create.execute(input, context);
+    const update = new UpdateCustomerUseCase(customers, replica, () => NOW);
+
+    const [first, second] = await Promise.allSettled([
+      update.execute({ id: customer.id, name: "Ana Maria" }, context),
+      update.execute({ id: customer.id, name: "Ana Clara" }, context),
+    ]);
+
+    expect(first.status).toBe("fulfilled");
+    expect(second.status === "rejected" && second.reason).toBeInstanceOf(CustomerConcurrentModificationError);
+    expect(customers.rows.get(customer.id)).toMatchObject({ name: "Ana Maria", version: 1 });
     expect(customers.outbox.map((e) => e.event.eventType)).toEqual(["CustomerCreated", "CustomerUpdated"]);
   });
 
